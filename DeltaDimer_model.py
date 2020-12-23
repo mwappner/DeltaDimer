@@ -72,9 +72,9 @@ parameters = {
     'b_C' : b_C/d/H0  ,
     'b_D' : b_D/d/H0  ,
     'b_N' : b_N/d/H0  ,
-    'eta' : 2.3       ,
-    'a'   : 1         ,
-    's'   : 1         ,
+    'eta' : 2.3       , # hill exponent
+    'a'   : 1         , # alpha
+    's'   : 1         , # sigma
     'lm'  : kCDm/d    , # lm == lm/H0
     'lp'  : kCDp*H0/d ,
     'kC'  : kCN*H0/d  ,

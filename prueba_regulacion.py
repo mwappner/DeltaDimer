@@ -20,12 +20,12 @@ def convert(array_of_arrays):
     return array_of_arrays
     
 
-#%% Testes
+#%% Tests
 
-d = 0.2
-b = 5
-h = 2
-tau = 3
+d = 0.3
+b = 30
+h = 2.3
+tau = 10
 x0 = 1
 
 estimated_period = 2*tau + 2/d
@@ -238,12 +238,19 @@ def model(x, t, d, b, x0, h, tau):
 def history(t):
     return 1
 
-
-d=0.6
+#Excess work warning
+d=1.125
 b=1
 h=3
-tau=5
+tau=24
 x0=1
+
+# #Numpy warning
+# d=0.3
+# b=3
+# h=3
+# tau=10
+# x0=1
 
 estimated_period = 2*tau + 2/d
 
@@ -258,25 +265,27 @@ times = np.linspace(0, tf, N)
 
 # print(f'Run #{runs} with: d={d}, b={b}, h={h}, tau={tau}, x0={x0}')
 
+np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 with warnings.catch_warnings() as w:
-    warnings.simplefilter("error", category=UserWarning)
+    warnings.filterwarnings("error", message='vode:', category=UserWarning)
+    warnings.filterwarnings("error", message='DUODE--:', category=UserWarning)
     try:
-    
+        
         x = ddeint(model, history, times, fargs=[d, b, x0, h, tau])
-        
-        # line.set_ydata(px := x[: 1600])
-        # relim(ax, px.max()[0], px.min()[0])
-        
-        # # name_maker = lambda l: ', '.join([f'{i}={{{i}}}' for i in l.split()])
-        # plt.savefig(f'regulacion_imgs/d={d}, b={b}, h={h}, tau={tau}, x0={x0}.png')
-        
-        
-        # with open('regulacion_imgs/regulacion.csv', 'a') as f:
-        #     osc, freq = oscilates(x, N, tf)
-        #     f.write(f'{d},{b},{h},{tau},{x0},{osc},{freq}\n')
-        
+    
+    # line.set_ydata(px := x[: 1600])
+    # relim(ax, px.max()[0], px.min()[0])
+    
+    # # name_maker = lambda l: ', '.join([f'{i}={{{i}}}' for i in l.split()])
+    # plt.savefig(f'regulacion_imgs/d={d}, b={b}, h={h}, tau={tau}, x0={x0}.png')
+    
+    
+    # with open('regulacion_imgs/regulacion.csv', 'a') as f:
+    #     osc, freq = oscilates(x, N, tf)
+    #     f.write(f'{d},{b},{h},{tau},{x0},{osc},{freq}\n')
+    
         plt.plot(times[plot_range], x[plot_range])
-    except UserWarning:
-        print('user warning')
+    except UserWarning as w:
+        warnings.warn(w)
 
 
