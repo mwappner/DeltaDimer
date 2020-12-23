@@ -62,7 +62,7 @@ def filter_single(df, d, b, h, tau, x0=1, plot=False):
 
 # %% Load data, sort by 'd' and store parameter values
 
-data = pd.read_csv('regulacion_imgs_mp/mp_test.csv').sort_values(by=['d'])
+data = pd.read_csv('regulacion_imgs/mp_test.csv').sort_values(by=['d'])
 
 parameters = data.keys()[:5]
 parameter_values = {k:set(data[k]) for k in parameters}
@@ -234,6 +234,8 @@ tmax = max(parameter_values['tau'])
 
 dgrid, taugrid = np.mgrid[dmin:dmax:0.01, tmin:tmax:1]
 
+xgrid, ygrid = np.mgrid[dmin:dmax:0.01, tmin:tmax:1]
+
 period_theoretical = approx_period(dgrid, taugrid)
       
 # data_nanless = filter_data(data, {'b':b, 'h':h})
@@ -318,6 +320,8 @@ tmin = min(parameter_values['tau'])
 tmax = max(parameter_values['tau'])
 
 dgrid, taugrid = np.mgrid[dmin:dmax:0.01, tmin:tmax:1]
+
+xgrid, ygrid = np.mgrid[dmin:dmax:0.01, tmin:tmax:1]
 
 period_theoretical = approx_period(dgrid, taugrid)
       
