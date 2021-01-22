@@ -7,6 +7,8 @@ Created on Tue Dec 22 19:32:07 2020
 
 from ddeint import ddeint
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 def model_full(X, t, tau, 
                d, b_H, b_C, b_D, b_N, 
@@ -36,21 +38,25 @@ def model_full(X, t, tau,
 def model_adim(X, t, tau, 
                b_H, b_C, b_D, b_N, # b == beta
                eta, a, s, # a == alpha, s == sigma
-               lm, lp, kC, kD, kE): #l == lambda, k == kappa, lm == lm/H0
+               lm, lp, kC, kD, kE, #l == lambda, k == kappa, lm == lm/H0
+               det, fc): #det == detuning , fc*tau == tauc
     
     h1, c1, d1, e1, n1, s1, h2, c2, d2, e2, n2, s2 = X(t)
-    h1d, _, _, _, _, s1d, h2d, _, _, _, _, s2d = X(t-tau)
+    h1d, _, _, _, _, s1d, _, _, _, _, _, _ = X(t-tau)
+    _, _, _, _, _, _, h2d, _, _, _, _, s2d = X(t-tau*det)
+    h1c, _, _, _, _, _, h2c, _, _, _, _, _ = X(t-tau*fc)
+    #_, _, _, _, _, _, h2d, _, _, _, _, s2d = X(t-tau*detune)
     
     model = [
         -h1 + b_H * (1 + s*a * s1d**eta ) / ( (1 + s * s1d**eta) * (1 + h1d**eta) ),
-        -c1 + b_C / (1 + h1d**eta) + lm * e1 - lp * c1 * d1 - kC * c1 * n2,
+        -c1 + b_C / (1 + h1c**eta) + lm * e1 - lp * c1 * d1 - kC * c1 * n2,
         -d1 + b_D + lm * e1 - lp * c1 * d1 - kD * d1 * n2,
         -e1 - lm * e1 + lp * c1 * d1 - kE * e1 * n2,
         -n1 + b_N - n1 * (kC * c2 + kD * d2 + kE * e2),
         -s1 +  n1 * (kC * c2 + kD * d2 + kE * e2),
         
         -h2 + b_H * (1 + s*a * s2d**eta ) / ( (1 + s * s2d**eta) * (1 + h2d**eta) ),
-        -c2 + b_C / (1 + h2d**eta) + lm * e2 - lp * c2 * d2 - kC * c2 * n1,
+        -c2 + b_C / (1 + h2c**eta) + lm * e2 - lp * c2 * d2 - kC * c2 * n1,
         -d2 + b_D + lm * e2 - lp * c2 * d2 - kD * d2 * n1,
         -e2 - lm * e2 + lp * c2 * d2 - kE * e2 * n1,
         -n2 + b_N - n2 * (kC * c1 + kD * d1 + kE * e1),
@@ -58,31 +64,79 @@ def model_adim(X, t, tau,
         ]
     return np.array(model)
 
-times = np.linspace(0, 10, 100)
 
 d = 0.3 # 1/min
-b_H, b_C, b_D, b_N = [30]*4
-kCDp, kCDm = 0.01, 0.1
-kCN, kDN, kEN = 0.1, 0.1, 0.1
+b_H, b_C, b_D, b_N = 20, 20, 30, 30
+kCDp, kCDm = 0, 0
+# kCN, kDN, kEN = 0.2, 0.2, 0
+kCN, kDN, kEN = 0, 0, 0 # no communication between the cells
 H0 = 1 #!!!
 
 parameters = {
-    'tau' : 10        ,
+    'tau' : 3        ,
     'b_H' : b_H/d/H0  ,
     'b_C' : b_C/d/H0  ,
     'b_D' : b_D/d/H0  ,
     'b_N' : b_N/d/H0  ,
     'eta' : 2.3       , # hill exponent
-    'a'   : 1         , # alpha
+    'a'   : 5         , # alpha
     's'   : 1         , # sigma
     'lm'  : kCDm/d    , # lm == lm/H0
     'lp'  : kCDp*H0/d ,
     'kC'  : kCN*H0/d  ,
     'kD'  : kDN*H0/d  ,
     'kE'  : kEN*H0/d  ,
+    'det' : 1.0       ,
+    'fc'  : 0      ,
     }
 
+names = ['H1', 'C1', 'D1', 'E1', 'N1', 'S1', 
+         'H2', 'C2', 'D2', 'E2', 'N2', 'S2']
+
 def past_values(t):
-    return np.ones(12)
+    return np.concatenate( ( 1*np.ones(6), 2*np.ones(6) ) )
+
+estimated_period = 2 * (parameters['tau'] + 1) # tau is automatically adimentionalized
+n = 300 # ammount of points per estimated period
+K = 20 # ammount of estiamted periods to integrate over
+
+tf = K * estimated_period
+N = n * K
+dt = tf/N
+plot_range = slice(int(-15*estimated_period/dt), N, 2)
+
+times = np.linspace(0, tf, N)
+tt = times[plot_range]
 
 Xint = ddeint(model_adim, past_values, times, fargs=parameters.values())
+
+print('\a')
+
+#%%
+
+f = plt.figure(figsize=(16,9))
+gs = f.add_gridspec(3, 3)
+axarr = [f.add_subplot(gs[i,j]) for i in range(2) for j in range(3)]
+
+sdet = f"detuning={parameters['det']}"
+sfc = r'$\tau_c$=$\tau$*{:.2f}'.format(parameters['fc'])
+f.suptitle(n := f"{kCN=}, {kDN=}, {kEN=}, a={parameters['a']}, tau={parameters['tau']}\n {sdet}, {sfc} ")
+
+for i, ax in enumerate(axarr):
+    name1, name2 = names[i], names[i+6]
+    x1, x2 = Xint[:,i], Xint[:, i+6]
+    ax.plot(tt, x1[plot_range], lw=1.5, label = name1 )
+    ax.plot(tt, x2[plot_range], '--o' , lw=1.5, label = name2 )
+    
+    ax.set_title(name1[0])
+    ax.legend(loc='center right')
+
+ax_long = f.add_subplot(gs[2, :])
+ax_long.plot(times, Xint[:,0],lw=1.5)
+ax_long.plot(times, Xint[:,6], '--', lw=1.5)
+ax_long.set_title('H, full time series')
+
+plt.tight_layout()
+
+n2 = n.replace('\n', ',').replace('\\', '').replace('$','')
+# plt.savefig(r'DeltaDimer_data/tauc/imgs/'+n2+'.png')
