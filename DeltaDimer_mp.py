@@ -129,28 +129,22 @@ def run_one(*parameters):
     n = base_n
     completed = False    
     
-    print_asynch(lock, f'Starting {file_name}')
+    print_asynch(lock, f'Starting {file_name}\n')
     
-    while not completed and n<3500:
-        try:
-            
-            tf = K * estimated_period
-            N = n * K
-            times = np.linspace(0, tf, N)
-            
-            Xint = ddeint(model_adim, past_values, times, fargs=parameters.values())
-            completed = True
-        except (UserWarning,RuntimeWarning) as w:
-            n = np.round(n * nf, -1) #rounds to nearest multiple of 10
-            
-            lock.acquire()
-            print(f'Increasing n to {n} in {file_name} after {w}')
-            print()
-            lock.release()
-    else:
-        lock.acquire()
-        print(f'Exited {name} with {"in" if not completed else ""}complete')
-        lock.release()
+    try:
+        
+        tf = K * estimated_period
+        N = n * K
+        times = np.linspace(0, tf, N)
+        
+        Xint = ddeint(model_adim, past_values, times, fargs=parameters.values())
+        completed = True
+    except (UserWarning,RuntimeWarning) as w:
+        n = np.round(n * nf, -1) #rounds to nearest multiple of 10
+        
+        print_asynch(lock, f'Increasing n to {n} in {file_name} after {w}\n')
+else:
+        print_asynch(lock, 'Exited {name} with {"in" if not completed else ""}complete')
         if not completed:
             
             lock.acquire()
