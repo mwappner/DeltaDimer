@@ -31,12 +31,12 @@ param_lists = {
     'b_N'  : 30,
     'kCDp' : 0.1,
     'kCDm' : 0.1,
-    'kCN'  : [0, 0.3],#np.round(np.arange(0, 0.6, 0.1), 2),
-    'kDN'  : [0, 0.3],
-    'kEN'  : [0, 0.3],
+    'kCN'  : np.round(np.arange(0, 0.4, 0.05), 2),
+    'kDN'  : np.round(np.arange(0, 0.4, 0.05), 2),
+    'kEN'  : np.round(np.arange(0, 0.4, 0.05), 2),
     'H0'   : 1,
     'eta'  : 2.3,
-    'a'    : 10,
+    'a'    : [1, 5, 10],
     's'    : 1,
     'det'  : 1.0,
     'fc'   : 0
@@ -121,7 +121,7 @@ def run_one(*parameters):
     parameters = make_parameters(*parameters)
     
     estimated_period = 2 * (tau + 1) # tau is automatically adimentionalized
-    n = 1200
+    n = 1500
     target_n = 150 # approximate ammount of points per estimated period to save
     K = 60 # ammount of estiamted periods to integrate over
     
@@ -229,4 +229,4 @@ if __name__ == '__main__':
     from time import time
     start = time()
     main()    
-    print(f'Done after {time()-start:.0f}')
+    print(f'Done after {(time()-start)//60:.0f} minutes')
