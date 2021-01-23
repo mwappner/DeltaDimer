@@ -31,9 +31,9 @@ param_lists = {
     'b_N'  : 30,
     'kCDp' : 0.1,
     'kCDm' : 0.1,
-    'kCN'  : 0.3,#np.round(np.arange(0, 0.6, 0.1), 2),
+    'kCN'  : [0, 0.3],#np.round(np.arange(0, 0.6, 0.1), 2),
     'kDN'  : [0, 0.3],
-    'kEN'  : 0.3,
+    'kEN'  : [0, 0.3],
     'H0'   : 1,
     'eta'  : 2.3,
     'a'    : 10,
@@ -121,37 +121,26 @@ def run_one(*parameters):
     parameters = make_parameters(*parameters)
     
     estimated_period = 2 * (tau + 1) # tau is automatically adimentionalized
-    base_n = 1600 # starting ammount of points per estimated period
-    nf = 1.1 # increase rate of n each time an error is found
+    n = 1200
     target_n = 150 # approximate ammount of points per estimated period to save
     K = 60 # ammount of estiamted periods to integrate over
-    
-    n = base_n
-    completed = False    
     
     print_asynch(lock, f'Starting {file_name}\n')
     
     try:
-        
         tf = K * estimated_period
         N = n * K
         times = np.linspace(0, tf, N)
         
         Xint = ddeint(model_adim, past_values, times, fargs=parameters.values())
-        completed = True
     except (UserWarning,RuntimeWarning) as w:
-        n = np.round(n * nf, -1) #rounds to nearest multiple of 10
         
-        print_asynch(lock, f'Increasing n to {n} in {file_name} after {w}\n')
-else:
-        print_asynch(lock, 'Exited {name} with {"in" if not completed else ""}complete')
-        if not completed:
-            
-            lock.acquire()
-            with open(SKIPFILE, 'a') as skip:
-                skip.write(file_name + '\n')
-            lock.release()
-            return
+        print_asynch(lock, f"Couldn't complete {file_name} due to {w}")
+        lock.acquire()
+        with open(SKIPFILE, 'a') as skip:
+            skip.write(file_name + '\n')
+        lock.release()
+        return
     
     lock.acquire()
     with open(SAVEFILE, 'a') as runs:
