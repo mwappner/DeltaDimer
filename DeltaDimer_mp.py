@@ -15,7 +15,7 @@ from multiprocessing import Pool, Lock, cpu_count
 from utils import new_name, iter_to_csv
 
 BASE_DIR = 'DeltaDimer_data/tauc_alpha/'
-SAVEFILE = BASE_DIR + 'runs.txt'
+SAVEFILE = BASE_DIR + 'runs.csv'
 SKIPFILE = BASE_DIR + 'skipped.txt'
 
 WRITE_MODE = 'w' # 'w' or 'a'
@@ -82,14 +82,14 @@ def model_adim(X, t, tau,
     #_, _, _, _, _, _, h2d, _, _, _, _, s2d = X(t-tau*detune)
     
     model = [
-        -h1 + b_H * (1 + s*a * s1d**eta ) / ( (1 + s * s1d**eta) * (1 + h1d**eta) ),
+        -h1 + b_H * (1 + a * (s * s1d)**eta ) / ( (1 + (s * s1d)**eta) * (1 + h1d**eta) ),
         -c1 + b_C / (1 + h1c**eta) + lm * e1 - lp * c1 * d1 - kC * c1 * n2,
         -d1 + b_D + lm * e1 - lp * c1 * d1 - kD * d1 * n2,
         -e1 - lm * e1 + lp * c1 * d1 - kE * e1 * n2,
         -n1 + b_N - n1 * (kC * c2 + kD * d2 + kE * e2),
         -s1 +  n1 * (kC * c2 + kD * d2 + kE * e2),
         
-        -h2 + b_H * (1 + s*a * s2d**eta ) / ( (1 + s * s2d**eta) * (1 + h2d**eta) ),
+        -h2 + b_H * (1 + a * (s* s2d)**eta ) / ( (1 + (s * s2d)**eta) * (1 + h2d**eta) ),
         -c2 + b_C / (1 + h2c**eta) + lm * e2 - lp * c2 * d2 - kC * c2 * n1,
         -d2 + b_D + lm * e2 - lp * c2 * d2 - kD * d2 * n1,
         -e2 - lm * e2 + lp * c2 * d2 - kE * e2 * n1,
@@ -115,7 +115,7 @@ def run_one(*parameters):
     
     sdet = f"detuning={det}"
     sfc = r'$\tau_c$=$\tau$*{:.2f}'.format(fc)
-    name = f"{kCN=}; {kDN=}; {kEN=}; {a=}; {tau=}\n {sdet}; {sfc}; {CI=}"
+    name = f"{kCN=}; {kDN=}; {kEN=}; {a=}; {tau=}\n {sdet}; {sfc}; {CI=}".replace(',', ';')
     file_name = name.replace('\n', ';').replace('\\', '').replace('$','')
     
     parameters = make_parameters(*parameters)

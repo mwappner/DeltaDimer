@@ -8,15 +8,15 @@ Created on Tue Dec 22 19:32:07 2020
 
 from ddeint import ddeint
 import numpy as np
-import matplotlib.pyplot as plt
 import warnings
 from itertools import product
 from multiprocessing import Pool, Lock, cpu_count
 from utils import new_name, iter_to_csv
+import os
 
-BASE_DIR = 'DeltaDimer_data/tauc_alpha/'
-SAVEFILE = BASE_DIR + 'runs.txt'
-SKIPFILE = BASE_DIR + 'skipped.txt'
+BASE_DIR = 'DeltaDimer_data/tauc_alpha/mp_test'
+SAVEFILE = os.path.join(BASE_DIR, 'runs.csv')
+SKIPFILE = os.path.join(BASE_DIR, 'skipped.csv')
 
 WRITE_MODE = 'w' # 'w' or 'a'
 
@@ -25,19 +25,19 @@ CI = [1,5]
 param_lists = {
     'd'    : 0.3,
     'tau'  : 3,
-    'b_H'  : 20,
-    'b_C'  : 20,
-    'b_D'  : 30,
-    'b_N'  : 30,
-    'kCDp' : 0.1,
-    'kCDm' : 0.1,
-    'kCN'  : np.round(np.arange(0, 0.4, 0.05), 2),
-    'kDN'  : np.round(np.arange(0, 0.4, 0.05), 2),
-    'kEN'  : np.round(np.arange(0, 0.4, 0.05), 2),
+    'b_H'  : 1,
+    'b_C'  : [1,3,5,10],
+    'b_D'  : [1,3],
+    'b_N'  : [1,3,5],
+    'kCDp' : 0,
+    'kCDm' : 0,
+    'kCN'  : np.round(np.logspace(-3, -0.7, 18), 6),
+    'kDN'  : np.round(np.logspace(-5, -1, 5), 6),
+    'kEN'  : 0,
     'H0'   : 1,
     'eta'  : 2.3,
-    'a'    : [1, 5, 10],
-    's'    : 1,
+    'a'    : 5,
+    's'    : 0.1,
     'det'  : 1.0,
     'fc'   : 0
 }
@@ -82,14 +82,14 @@ def model_adim(X, t, tau,
     #_, _, _, _, _, _, h2d, _, _, _, _, s2d = X(t-tau*detune)
     
     model = [
-        -h1 + b_H * (1 + s*a * s1d**eta ) / ( (1 + s * s1d**eta) * (1 + h1d**eta) ),
+        -h1 + b_H * (1 + a * (s * s1d)**eta ) / ( (1 + (s * s1d)**eta) * (1 + h1d**eta) ),
         -c1 + b_C / (1 + h1c**eta) + lm * e1 - lp * c1 * d1 - kC * c1 * n2,
         -d1 + b_D + lm * e1 - lp * c1 * d1 - kD * d1 * n2,
         -e1 - lm * e1 + lp * c1 * d1 - kE * e1 * n2,
         -n1 + b_N - n1 * (kC * c2 + kD * d2 + kE * e2),
         -s1 +  n1 * (kC * c2 + kD * d2 + kE * e2),
         
-        -h2 + b_H * (1 + s*a * s2d**eta ) / ( (1 + s * s2d**eta) * (1 + h2d**eta) ),
+        -h2 + b_H * (1 + a * (s * s2d)**eta ) / ( (1 + (s * s2d)**eta) * (1 + h2d**eta) ),
         -c2 + b_C / (1 + h2c**eta) + lm * e2 - lp * c2 * d2 - kC * c2 * n1,
         -d2 + b_D + lm * e2 - lp * c2 * d2 - kD * d2 * n1,
         -e2 - lm * e2 + lp * c2 * d2 - kE * e2 * n1,
@@ -114,16 +114,15 @@ def run_one(*parameters):
     a, s, det, fc = parameters[-4:]
     
     sdet = f"detuning={det}"
-    sfc = r'$\tau_c$=$\tau$*{:.2f}'.format(fc)
-    name = f"{kCN=}; {kDN=}; {kEN=}; {a=}; {tau=}\n {sdet}; {sfc}; {CI=}"
-    file_name = name.replace('\n', ';').replace('\\', '').replace('$','')
-    
+    sfc = r'tau_c=tau*{:.2f}'.format(fc)
+    file_name = f"{kCN=}; {kDN=}; {kEN=}; {a=}; {tau=}; {s=}; {sdet}; {sfc}; {CI=}".replace(',', ';')
+   
     parameters = make_parameters(*parameters)
     
     estimated_period = 2 * (tau + 1) # tau is automatically adimentionalized
-    n = 1500
+    n = 1200
     target_n = 300 # approximate ammount of points per estimated period to save
-    K = 60 # ammount of estiamted periods to integrate over
+    K = 20 # ammount of estiamted periods to integrate over
     
     print_asynch(lock, f'Starting {file_name}\n')
     
@@ -134,28 +133,33 @@ def run_one(*parameters):
         
         Xint = ddeint(model_adim, past_values, times, fargs=parameters.values())
     except (UserWarning,RuntimeWarning) as w:
-        
+            
         print_asynch(lock, f"Couldn't complete {file_name} due to {w}")
         lock.acquire()
         with open(SKIPFILE, 'a') as skip:
-            skip.write(file_name + '\n')
+            skip.write(
+            		iter_to_csv(parameters.values(), fmt='.6f') + 
+               	f',{CI[0]},{CI[1]}\n')
         lock.release()
         return
     
+    file_name = n.replace('\n', ',').replace('\\', '').replace('$','').replace(',', ';')
+    Xsave = np.concatenate((np.expand_dims(times, 1), Xint), axis=1)
+    
     lock.acquire()
-    with open(SAVEFILE, 'a') as runs:
+    print('locked')
+    npy_name = new_name(os.path.join(BASE_DIR, file_name+'.npy'), newformater=' (%d)')
+    with open(SAVEFILE, 'a') as runs:        
         runs.write(file_name + 
                    ',' + 
-                   iter_to_csv(parameters.values()) + 
+                   iter_to_csv(parameters.values(), fmt='.6f') + 
                    f',{CI[0]},{CI[1]}\n'
-                   )
+                   )        
     lock.release()
     
-    npy_name= new_name(BASE_DIR + file_name + '.npy')
+    print_asynch('released')
     step = int(np.floor(n/target_n))
-    Xsave = np.concatenate((np.expand_dims(times, 1), Xint), axis=1)
     np.save(npy_name, Xsave[::step])
-
 
 
 def init(l):
@@ -181,7 +185,7 @@ def main():
         l = Lock()
         
         #fire off workers
-        with Pool(cpu_count() + 2, initializer=init, initargs=(l,)) as pool:
+        with Pool(cpu_count() - 2, initializer=init, initargs=(l,)) as pool:
         
             jobs = []
             for param_tuple in parameters:

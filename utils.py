@@ -23,17 +23,18 @@ def bitificar8(im,desv=1):
     im = np.clip(im, 0, 255).astype('uint8') #corta todo por fuera de la escala
     return im
 
-def new_name(name, newseparator='_'):
-    '''Returns a name of a unique file or directory so as to not overwrite.
+def new_name(name, newformater='_%d'):
+    '''
+    Returns a name of a unique file or directory so as to not overwrite.
     
-    If proposed name existed, will return name + newseparator + number.
+    If proposed name existed, will return name + newformater%number.
      
     Parameters:
     -----------
         name : str (path)
             proposed file or directory name influding file extension
-        nweseparator : str
-            separator between original name and index that gives unique name
+        newformater : str
+            format to give the index to the new name, esuring a unique name
             
     Returns:
     --------
@@ -45,12 +46,27 @@ def new_name(name, newseparator='_'):
     base, extension = os.path.splitext(name)
     i = 2
     while os.path.exists(name):
-        name = base + newseparator + str(i) + extension
+        name = base + newformater%i + extension
         i += 1
         
     return name
 
 def make_dirs_noreplace(dirs_paths):
+    """
+    Creates a new directory only if that directory doesn't exist already'
+
+    Parameters
+    ----------
+    dirs_paths : str, path-like object
+        The candidate directory to create
+
+    Returns
+    -------
+    dirs_paths : str, path-like object
+        same string or path object
+
+    """
+    
     try:
         os.makedirs(dirs_paths)
     except FileExistsError:
@@ -59,6 +75,23 @@ def make_dirs_noreplace(dirs_paths):
     return dirs_paths
 
 def natural_sort(l): 
+    """
+    Applies natural sort to a list, returns new list. Natural sort treats 
+    strings of numbers as one unit, in contrast to alphanumerical (or 
+    lexicographic) ordering. This means that 11 comes before 2 in alphanimeric
+    sorting, but 2 before 11 in natural sort.
+
+    Parameters
+    ----------
+    l : iterable
+        iterable to sort
+
+    Returns
+    -------
+    list
+        sorted list from the items in l, naturally sorted
+        
+    """
     convert = lambda text: int(text) if text.isdigit() else text.lower() 
     alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
     return sorted(l, key = alphanum_key)
@@ -100,7 +133,7 @@ def find_numbers(string):
 
 def iter_to_csv(iterable, fmt='.2f'):
     """
-    Joins an iterable inot a string of comma separated values.
+    Joins an iterable into a string of comma separated values.
 
     Parameters
     ----------
@@ -143,9 +176,11 @@ class contenidos(list):
     --------
     Métodos:
         update():
-            Actualiza la lista si los contenidos de la carpeta cambiaron.
+            Actualiza la lista si los contenidos de la carpeta cambiaron
         natural_sort():
-            Ordena la lista según orden natural.
+            Ordena la lista según orden natural
+        age_sort():
+            Ordena la lista según última fecha de modificación
         print_orden(only_basename=True):
             Imprime los contenidos de la lista con los índices
         filtered_ext(ext):
@@ -160,7 +195,7 @@ class contenidos(list):
             modifica esta lista para quedarse sólo con los directorios
 
     '''
-    def __init__(self, carpeta=None, full_path=True, natsort=True, filter_ext=None):
+    def __init__(self, carpeta=None, full_path=True, sort='natural', filter_ext=None):
         '''Si full_path=True, los elementos de la lista serán los contenidos de la carpeta
         apendeados con el nombre de la carpeta en sí. Si no, serán sólo los contenidos, en
         cuyo caso habrá algunas funconalidads no disponibles.'''
@@ -170,11 +205,11 @@ class contenidos(list):
             raise NotADirectoryError(
                     'El nombre del directorio no es válido: '+ 
                     self.carpeta)
-        self._full_path = full_path
-        self.filter_ext = filter_ext
 
-        if natsort:
-            self.natural_sort()
+        self.sort_type = sort
+        
+        self._full_path = full_path # performs the sortng
+        self.filter_ext = filter_ext #also performs the sorting
 
     @property
     def filter_ext(self):
@@ -188,7 +223,7 @@ class contenidos(list):
         elif value is None:
             pass 
         else:
-            raise TypeError('filter_ext debe ser un string con una única extensión, o un iterable con varias extensiones.')
+            raise TypeError('filter_ext must be a string representing an extension, or an iterable with with many extensions')
         self._filter_ext = value
         self.update()
 
@@ -198,9 +233,30 @@ class contenidos(list):
     @full_path.setter
     def full_path(self, value):
         if not isinstance(value, bool):
-            raise TypeError('full_path debe ser booleano.')
+            raise TypeError('full_path must be bool type')
         self._full_path = value
         self.update()
+        
+    @property
+    def sort_type(self):
+        return self._sort_type
+    @sort_type.setter
+    def sort_type(self, value):
+        valid = ['natural', 'lexicographic', 'age', None]
+        if value not in valid:
+            raise ValueError("Sort must be one of ['natural', 'lexicographic', 'age' or None.]")
+        self._sort_type = value
+
+    def __sorter(self):
+        sort = self._sort_type
+        if sort=='natural':
+            self.natural_sort()
+        elif sort=='lexicographic':
+            self.sort()
+        elif sort=='age':
+            self.age_sort()
+        else:
+            pass
 
     def update(self):
         if self.filter_ext is None:
@@ -212,10 +268,15 @@ class contenidos(list):
             super().__init__((os.path.join(self.carpeta, f) for f in archivos))
         else:
             super().__init__(archivos)
+        
+        self.__sorter()
 
     def natural_sort(self):
         convert = lambda text: int(text) if text.isdigit() else text.lower() 
         self.sort(key=lambda key: [convert(c) for c in re.split('([0-9]+)', key)])
+    
+    def age_sort(self):
+        self.sort(key=os.path.getmtime)
         
     def print_orden(self, only_basename=True):
         if only_basename:
