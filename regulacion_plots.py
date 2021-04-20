@@ -62,7 +62,7 @@ def filter_single(df, d, b, h, tau, x0=1, plot=False):
 
 # %% Load data, sort by 'd' and store parameter values
 
-data = pd.read_csv('regulacion_datos/taud_scan.csv').sort_values(by=['d'])
+data = pd.read_csv('regulacion_imgs/regulacion.csv').sort_values(by=['d'])
 
 parameters = data.keys()[:5]
 parameter_values = {k:sorted(list(set(data[k]))) for k in parameters}

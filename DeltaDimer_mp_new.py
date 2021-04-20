@@ -8,17 +8,15 @@ Created on Tue Dec 22 19:32:07 2020
 
 from ddeint import ddeint
 import numpy as np
+import matplotlib.pyplot as plt
 import warnings
 from itertools import product
 from multiprocessing import Pool, Lock, cpu_count
 from utils import new_name, iter_to_csv
-import os
 
-import matplotlib.pyplot as plt
-
-BASE_DIR = 'DeltaDimer_data/tauc_alpha/mp_test'
-SAVEFILE = os.path.join(BASE_DIR, 'runs.csv')
-SKIPFILE = os.path.join(BASE_DIR, 'skipped.csv')
+BASE_DIR = 'DeltaDimer_data/tauc_alpha/'
+SAVEFILE = BASE_DIR + 'runs.csv'
+SKIPFILE = BASE_DIR + 'skipped.txt'
 
 WRITE_MODE = 'w' # 'w' or 'a'
 
@@ -27,19 +25,19 @@ CI = [1,5]
 param_lists = {
     'd'    : 0.3,
     'tau'  : 3,
-    'b_H'  : 1,
-    'b_C'  : [1,3,5,10],
-    'b_D'  : [1,3],
-    'b_N'  : [1,3,5],
-    'kCDp' : 0,
-    'kCDm' : 0,
-    'kCN'  : np.round(np.logspace(-3, -0.7, 18), 6),
-    'kDN'  : np.round(np.logspace(-5, -1, 5), 6),
-    'kEN'  : 0,
+    'b_H'  : 20,
+    'b_C'  : 20,
+    'b_D'  : 30,
+    'b_N'  : 30,
+    'kCDp' : 0.1,
+    'kCDm' : 0.1,
+    'kCN'  : np.round(np.arange(0, 0.4, 0.05), 2),
+    'kDN'  : np.round(np.arange(0, 0.4, 0.05), 2),
+    'kEN'  : np.round(np.arange(0, 0.4, 0.05), 2),
     'H0'   : 1,
     'eta'  : 2.3,
-    'a'    : 5,
-    's'    : 0.1,
+    'a'    : [1, 5, 10],
+    's'    : 1,
     'det'  : 1.0,
     'fc'   : 0
 }
@@ -100,73 +98,29 @@ def model_adim(X, t, tau,
         ]
     return np.array(model)
 
+def find_point_by_value(array, value):
+    return np.abs(array-value).argmin()
+
 def past_values(t):
-    return np.concatenate( ( CI[0]*np.ones(6), CI[1]*np.ones(6) ) )
+    return np.concatenate( ( CI[0]*np.ones(6), CI[1]*np.ones(6)) )
+
+n = 1200 # ammount of points per estimated period
+K = 80 # ammount of estiamted periods to integrate over
+N = n * K
+target_n = 300 # approximate ammount of points per estimated period to save
+buffer_periods = 4 # ammount of periods at the end to descart during hilbert transform
+target_periods_proportion =  0.1 # proportion of the total ammount of periods to calcualte the hilbert transform over
+stationary_estimate_proportion = 0.6 # proportion of periods to count as stationary, estimate
 
 def print_asynch(lock, msg):
+    """For debug porpuses"""
     lock.acquire()
     print(msg)
     lock.release()
     
 
 def run_one(*parameters):
-    
-    tau = parameters[1]
-    kCN, kDN, kEN = parameters[8:11]
-    eta, a, s, det, fc = parameters[-5:]
-    
-    sdet = f"detuning={det}"
-    sfc = r'tau_c=tau*{:.2f}'.format(fc)
-    file_name = f"{kCN=}; {kDN=}; {kEN=}; {a=}; {tau=}; {s=}; {sdet}; {sfc}; {CI=}".replace(',', ';')
-   
-    parameters = make_parameters(*parameters)
-    
-    estimated_period = 2 * (tau + 1) # tau is automatically adimentionalized
-    n = 1200
-    target_n = 300 # approximate ammount of points per estimated period to save
-    K = 20 # ammount of estiamted periods to integrate over
-    
-    print_asynch(lock, f'Starting {file_name}\n')
-    
-    try:
-        tf = K * estimated_period
-        N = n * K
-        times = np.linspace(0, tf, N)
-        
-        Xint = ddeint(model_adim, past_values, times, fargs=parameters.values())
-    except (UserWarning,RuntimeWarning) as w:
-        
-        print_asynch(lock, f"Couldn't complete {file_name} due to {w}")
-        lock.acquire()
-        with open(SKIPFILE, 'a') as skip:
-            skip.write(
-            		iter_to_csv(parameters.values(), fmt='.6f') + 
-               	f',{CI[0]},{CI[1]}\n')
-        lock.release()
-        return
-    
-    Xsave = np.concatenate((np.expand_dims(times, 1), Xint), axis=1)
-    npy_name = os.path.join(BASE_DIR, file_name+'.npy')
-    
-    lock.acquire()
-    print('locked')
-    # npy_name = new_name(os.path.join(BASE_DIR, file_name+'.npy'), newformater=' (%d)')
-    print('name is', npy_name)
-    with open(SAVEFILE, 'a') as runs:        
-        runs.write(file_name + 
-                   ',' + 
-                   iter_to_csv(parameters.values(), fmt='.6f') + 
-                   f',{CI[0]},{CI[1]}\n'
-                   )        
-    print('releasing')
-    lock.release()
-    
-    print_asynch('released')
-    step = int(np.floor(n/target_n))
-    np.save(npy_name, Xsave[::step])
-                   
-    plt.plot(Xint[:,0])
-    plt.plot(Xint[:,6])
+    None
 
 def init(l):
     global lock

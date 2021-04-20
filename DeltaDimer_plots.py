@@ -14,8 +14,10 @@ import os
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from matplotlib.widgets import Slider, TextBox
+from scipy.signal import hilbert
+from scipy.interpolate import interp1d
 
-from utils import contenidos, new_name, find_numbers, Testimado
+from utils import contenidos, new_name, find_numbers, Testimado, make_dirs_noreplace
 
 
 def big_or(column, values):
@@ -104,6 +106,10 @@ def one_by_params(kCN, kDN, kEN, a, tau, det, fc, CI, image=False):
     sfc = f'tau_c=tau*{fc:.2f}'
     name = f"kCN={float(kCN)}; kDN={float(kDN)}; kEN={float(kEN)}; {a=}; {tau=}; {sdet}; {sfc}; {CI=}"
     return name
+
+
+def find_point_by_value(array, value):
+    return np.abs(array-value).argmin()
 #%% FOR THE NO TAUC SCANS
 
 
@@ -158,16 +164,23 @@ for i, ax in enumerate(axarr.flatten()):
 # BASE_DIR = '/home/user/Documents/Doctorado/DeltaDimer/DeltaDimer_data/tauc_alpha/CI[1,5]/'
 # BASE_DIR = '/home/user/Documents/Doctorado/DeltaDimer/DeltaDimer_data/tauc_alpha/CI[1,2]s/'
 # BASE_DIR = '/home/user/Documents/Doctorado/DeltaDimer/DeltaDimer_data/tauc_alpha/CI[1,5]s/'
-BASE_DIR = '/home/user/Documents/Doctorado/DeltaDimer/DeltaDimer_data/tauc_alpha/manual_runs/'
+# BASE_DIR = '/home/user/Documents/Doctorado/DeltaDimer/DeltaDimer_data/tauc_alpha/manual_runs/'
+BASE_DIR = 'DeltaDimer_data/tauc_alpha/manual_runs/'
+
+# current_dir = 6
+# BASE_DIR = 'DeltaDimer_data/tauc_alpha/'
+# BASE_DIR = os.path.join(BASE_DIR, str(current_dir))
 
 files = contenidos(BASE_DIR, filter_ext='.npy', sort='age')
-runs = pd.read_csv(BASE_DIR + 'runs.csv', index_col='name')
+runs = pd.read_csv(os.path.join(BASE_DIR, 'runs.csv'), index_col='name')
 
 parameters = runs.keys()
 parameter_values = {k:sorted(list(set(runs[k]))) for k in parameters}
 
 #%% Make all images
+
 tau = 3 # HARDCODED!!
+make_dirs_noreplace(os.path.join(BASE_DIR, 'imgs'))
 
 NUMBER = 0
 X = np.load(files[NUMBER])
@@ -247,7 +260,7 @@ for i, file in enumerate(files):
     relim(ax_long, max(M), min(m))
     
     
-    png_name = new_name(BASE_DIR + 'imgs/' + name[:-4] +'.png')
+    png_name = new_name( os.path.join(BASE_DIR, 'imgs', name[:-4] +'.png') )
     plt.savefig(png_name)
     
     
@@ -329,11 +342,11 @@ for name, parameters in some_s.iterrows():
 def reg_func(s, h, sigma, alpha, eta):
     return (1 + alpha * sigma**eta * s**eta) / ( (1 + sigma**eta * s**eta) * (1 + h**eta) )
 
-eta = 2.3
-alpha = 5
-sigma = 1
+eta = 15
+alpha = 2.5
+sigma = 0.1
 
-H = np.arange(0, 5, 0.01)
+H = np.arange(0, 3, 0.01)
 S = np.arange(0, 25, 0.01)
 H, S = np.meshgrid(H, S)
 r = reg_func(S, H, sigma, alpha, eta)
@@ -347,6 +360,11 @@ surf = [ax.plot_surface(H, S, r, cmap='viridis', edgecolor='none', alpha=0.8)]
 ax.set_title('Regulatory function', fontsize=15)
 ax.set_xlabel('h')
 ax.set_ylabel('s')
+
+t = np.linspace(0, 2*np.pi, 100)
+ht = ((H.max()-H.min())*0.8/2)*np.cos(t) + (H.max()+H.min())/2
+st = ((S.max()-S.min())*0.8/2)*np.sin(t) + (S.max()+S.min())/2
+line, = ax.plot(ht, st, reg_func(st, ht, sigma, alpha, eta))
 
 # Move the plot a bit to the right and set view angle
 plt.subplots_adjust(left=0.2)
@@ -390,6 +408,7 @@ sigma_slider = Slider(
 def updater(val):
     surf[0].remove()
     surf[0] = ax.plot_surface(H, S, reg_func(S, H, 10**sigma_slider.val, alpha_slider.val, eta_slider.val), cmap='viridis', edgecolor='none', alpha=0.8)
+    line.set_3d_properties(reg_func(st, ht, 10**sigma_slider.val, alpha_slider.val, eta_slider.val))
 
 eta_slider.on_changed(updater)
 alpha_slider.on_changed(updater)
@@ -398,29 +417,29 @@ sigma_slider.on_changed(updater)
 #%% Plot trajectories in 3D
 
 def reg_func(s, h, sigma, alpha, eta):
-    return (1 + alpha * sigma * s**eta) / ( (1 + sigma * s**eta) * (1 + h**eta) )
+    return (1 + alpha * (sigma * s)**eta) / ( (1 + (sigma * s)**eta) * (1 + h**eta) )
 
 def s_reg_func(s, sigma, alpha, eta):
-    return (1 + alpha * sigma * s**eta) / (1 + sigma * s**eta)
+    return (1 + alpha * (sigma * s)**eta) / (1 + (sigma * s)**eta)
 
 runs = pd.read_csv(BASE_DIR + 'runs.csv', index_col='name')
 files.update()
 
-# =============================================================================
+# # =============================================================================
 # ### For the older runs
-# # some_s = filter_by_values(runs, kCN=0.4, kDN=0.15, kEN=0.1, a=2, s=0.1)
-# 
-# # INX = 0 # what index out of the ones in some_s to check
-# # #get parameters
-# # eta = some_s['eta'].values[INX]
-# # alpha = some_s['a'].values[INX]
-# # sigma = some_s['s'].values[INX]
-# # tau = some_s['tau'].values[INX]
-# # name = some_s.index.values[INX]
+# some_s = filter_by_values(runs, kCN=0.001366, kDN=0.0001, kEN=0, a=5, s=0.1)
+
+# INX = 0 # what index out of the ones in some_s to check
+# #get parameters
+# eta = some_s['eta'].values[INX]
+# alpha = some_s['a'].values[INX]
+# sigma = some_s['s'].values[INX]
+# tau = some_s['tau'].values[INX]
+# name = some_s.index.values[INX]
+# # =============================================================================
 # =============================================================================
-# =============================================================================
-# ### For manual runs
-FILE_INDX = 6 # newest one
+#### For manual runs
+FILE_INDX = -2 # newest one
 this_name, _ = os.path.splitext(os.path.basename(files[FILE_INDX]))
 some_s = one_by_name(runs, this_name)
 
@@ -459,68 +478,137 @@ s_max = max(data[5].max(), data[11].max())
 ## Initializing the plot
 fig = plt.figure(constrained_layout=True)
 plt.get_current_fig_manager().window.setGeometry(*(200, 130, 1400, 850)) #sets position and size
-fig.suptitle(fig_name, fontsize=15)
+# fig.suptitle(fig_name, fontsize=15)
 
-gs = fig.add_gridspec(3, 5)
+gs = fig.add_gridspec(1, 2)
 
-ax3D = fig.add_subplot(gs[:, :3], projection='3d')
+ax3D = fig.add_subplot(gs[:, 0], projection='3d')
 ax3D.set_xlabel('h')
 ax3D.set_ylabel('s')
-ax3D.set_zlabel('amp')
+# ax3D.set_zlabel('amp')
 ax3D.view_init(19.9, -34.2)
+ax3D.set_title(fig_name, fontsize=15)
 
-ax_sinc = fig.add_subplot(gs[ 1, 3:])
-ax_sinc.set_xlabel('time $[d^{-1}]$')
+gs2 = gs[:, 1].subgridspec(5, 2, height_ratios=[1, 1, 1, 1, 2])
+ax_sinc = fig.add_subplot(gs2[ 1, :])
+# ax_sinc.set_xlabel('time $[d^{-1}]$')
 ax_sinc.set_ylabel('h(t) $[H_0]$')
 ax_sinc.set_title('Timeseries')
+ax_sinc.grid('on')
+plt.setp(ax_sinc.get_xticklabels(), visible=False)
 
-ax_heat = fig.add_subplot(gs[ 2, 3])
+ax_fase = fig.add_subplot(gs2[ 2, :], sharex=ax_sinc)
+ax_fase.set_ylabel(r'$cos(\Delta \phi)$')
+ax_fase.grid('on')
+ax_fase.set_title('Order parameter (K)')
+ax_fase.set_xlabel('time [periods]')
+# plt.setp(ax_fase.get_xticklabels(), visible=False)
+# ax_fase.set_ylim(-1.1, 1.1)
+
+ax_orbi = fig.add_subplot(gs2[ 3, :])
+ax_orbi.set_xlabel(r'angle [$2\pi$ rad]')
+ax_orbi.set_ylabel(r'$\int \Delta A $ / $ \langle {A} \rangle$')
+ax_orbi.grid('on')
+ax_orbi.set_title('Order parameter (M)')
+
+ax_heat = fig.add_subplot(gs2[ 4, 0])
 ax_heat.set_xlabel('h')
 ax_heat.set_ylabel('s')
 ax_heat.set_title('Heatmap')
 
-ax_regs = fig.add_subplot(gs[ 2, 4])
-ax_regs.set_xlabel('s')
-ax_regs.set_ylabel('amp')
-ax_regs.set_title('S part')
-ax_regs.grid()
+# ax_regs = fig.add_subplot(gs2[ 4, 1])
+# ax_regs.set_xlabel('s')
+# ax_regs.set_ylabel('amp')
+# ax_regs.set_title('S part')
+# ax_regs.grid()
 
-ax_table = fig.add_subplot(gs[0, 3:])
+ax_orb2 = fig.add_subplot(gs2[ 4, 1])
+ax_orb2.set_xlabel('h')
+ax_orb2.set_ylabel('d')
+ax_orb2.set_title('H-D orbit')
+ax_orb2.grid()
+
+ax_table = fig.add_subplot(gs2[0, :])
 ax_table.axis('off')
 
-### Plot 2D data
+## Plot 2D data
 
-# in 3D axis
+# some constants
 tf = t[-1]
 N = len(t)
 dt = tf/N
 estimated_period = 2 * (tau + 1)
-plot_range = slice(int(-10*estimated_period/dt), N)
 
-ax3D.plot(h:=data[0][plot_range], s:=data[5][plot_range], 
-          reg_func(s, h, sigma, alpha, eta),
+# for plot lengths
+buffer_periods = 4 # ammount of periods at the end to descart during hilbert transform
+target_periods_proportion =  0.1 # proportion of the total ammount of periods to calcualte the hilbert transform over
+stationary_estimate_proportion = 0.6 # proportion of periods to count as stationary, estimate
+
+points = int(stationary_estimate_proportion * N) # points in stationary region
+t = t[-points:]
+h1, h2 = data[0][-points:], data[6][-points:]
+s1, s2 = data[5][-points:], data[11][-points:]
+d1, d2 = data[2][-points:], data[8][-points:]
+h1_phase = np.unwrap(np.angle(hilbert(h1 - h1.mean())))
+h2_phase = np.unwrap(np.angle(hilbert(h2 - h2.mean())))
+
+# get integer ammount of periods
+total_periods = int(np.floor(h1_phase.max()/(2*np.pi))) # should be close to K*stationary_estimate_proportion
+target_periods = int(total_periods * target_periods_proportion)
+last_full_period_value = total_periods * np.pi * 2
+start_inx = find_point_by_value(h1_phase, last_full_period_value - 2*np.pi*(buffer_periods+target_periods))
+end_inx = find_point_by_value(h1_phase, last_full_period_value - 2*np.pi*buffer_periods)
+points_per_period = int((end_inx - start_inx)/target_periods)
+
+# redefine time scale
+time_per_period = (t[-1]-t[0])/total_periods
+t /= time_per_period
+
+# in 3D axis
+plot_range = slice(start_inx, end_inx)
+
+ax3D.plot(h1:=h1[plot_range], s1:=s1[plot_range], 
+          reg_func(s1, h1, sigma, alpha, eta),
           'k', lw=1)
 
-ax3D.plot(h2:=data[6][plot_range], s2:=data[11][plot_range],
+ax3D.plot(h2:=h2[plot_range], s2:=s2[plot_range],
           reg_func(s2, h2, sigma, alpha, eta),
           'r', lw=1)
 
 h_lim = np.round(ax3D.get_xlim(), 1)
 s_lim = np.round(ax3D.get_ylim(), 1)
 
-# in regulation axis
-ax_regs.plot(s, reg_func(s, h, sigma, alpha, eta), label='s part 1', lw=2)
-ax_regs.plot(s2, reg_func(s2, h2, sigma, alpha, eta), label='s part 2', lw=2)
-# ax_regs.legend(loc='lower right')
+# # in regulation axis
+# ax_regs.plot(s1, reg_func(s1, h1, sigma, alpha, eta), label='s part 1', lw=2)
+# ax_regs.plot(s2, reg_func(s2, h2, sigma, alpha, eta), label='s part 2', lw=2)
+# # ax_regs.legend(loc='lower right')
+
+# in h-d orbit axis
+ax_orb2.plot(h1, d1[plot_range])
+ax_orb2.plot(h2, d2[plot_range])
 
 # in heatmap axis
-ax_heat.plot(h, s, 'k', lw=1)
+ax_heat.plot(h1, s1, 'k', lw=1)
 ax_heat.plot(h2, s2, 'r', lw=1)
 
 # in timeseries axis
-ax_sinc.plot(tt:=t[plot_range], h, label='H1')
-ax_sinc.plot(tt, data[6][plot_range], '--', label='H2')
+ax_sinc.plot(tt:=t[plot_range], h1, label='H1', lw=2)
+ax_sinc.plot(tt, h2, '--', label='H2', lw=2)
+ax_sinc.legend(loc='lower right')
 legend = None
+
+# in hilbert transform axis
+mean_phase_diff = np.mean(K := np.cos(h1_phase[start_inx:end_inx] - h2_phase[start_inx:end_inx]))
+moving_mean = np.array([K[i : points_per_period + i].mean() for i in range((target_periods-1) * points_per_period)])
+
+L = moving_mean.size
+polytimes = np.linspace(0, L * tf/N, L)
+slopeK, _ = np.polyfit(polytimes, moving_mean, 1)
+
+ax_fase.plot(tt, K, color='C2', lw=2, label = 'K(t)')
+ax_fase.plot(tt[:moving_mean.size], moving_mean, color='C4', lw=2, label='Mean')
+ax_fase.legend(loc='lower right')
+ax_fase.set_title(r'$\langle K \rangle$ = {:.3f}, slope = {:.1e}'.format(K.mean(), slopeK))
 
 # in table axis
 vals = [f'{v:.2f}' for v in some_s.values]
@@ -536,8 +624,44 @@ xy_vals = product(y_vals, x_vals)
 for text, (y,x) in zip(param_strings, xy_vals):
     ax_table.text(x, y, text, fontsize=13)
 
+# Calculating orbit difference
+# find the center
+ch1, cs1 = h1.mean(), s1.mean()
+ch2, cs2 = h2.mean(), s2.mean()
+ch = (ch1+ch2)/2
+cs = (cs1+cs2)/2
+c = np.array([ch, cs])
+ax_heat.plot(*c, 'mo', markeredgecolor='k')
+
+ang1 = np.unwrap(np.angle(h1-ch+1j*(s1-cs)))
+ang2 = np.unwrap(np.angle(h2-ch + 1j * (s2-cs)))
+
+amp1 = np.sqrt((h1-ch)**2 + (s1-cs)**2)
+amp2 = np.sqrt((h2-ch)**2 + (s2-cs)**2)
+
+angles = np.linspace(ang1[0], ang1[-1], 500*target_periods)
+
+amp1_interpolator = interp1d(ang1, amp1, kind='linear', bounds_error=False)
+amp1_intp = amp1_interpolator(angles)
+amp1_intp = np.ma.array(amp1_intp, mask = np.isnan(amp1_intp))
+amp2_interpolator = interp1d(ang2, amp2, kind='linear', bounds_error=False)
+amp2_intp = amp2_interpolator(angles)
+amp2_intp = np.ma.array(amp2_intp, mask = np.isnan(amp2_intp))
+
+amp_diff = amp1_intp-amp2_intp
+amp_sum = amp1_intp+amp2_intp
+def calc_M(diff, add):
+    return np.trapz( amp_diff**2, dx=angles[0]-angles[1])/np.trapz( amp_sum**2, dx=angles[0]-angles[1])
+M = calc_M(amp_diff, amp_sum)
+
+time_M = np.array([calc_M(amp_diff[i:i+points_per_period], amp_sum[i:i+points_per_period]) for i in range((target_periods-1) * 500)])
+slopeM, _ = np.polyfit(angles[:time_M.size], time_M, 1)
+
+ax_orbi.set_title(r'$\langle M \rangle$ = {:.3f}, slope = {:.1e}'.format(M, slopeM))
+ax_orbi.plot(angles[:time_M.size]/(2*np.pi), time_M)
+
 def update_plot(h_lim, s_lim):
-    # creat the plot according to the data, but no bigger than the limit values    
+    # create the plot according to the data, but no bigger than the limit values    
     H = np.linspace( h_lim[0], h_lim[1], 70)
     S = np.linspace( s_lim[0], s_lim[1], 70)
     H, S = np.meshgrid(H[H>0], S[S>0])
@@ -557,8 +681,8 @@ def update_plot(h_lim, s_lim):
     ax_heat.set_xlim(*h_lim)
     ax_heat.set_ylim(*s_lim)
     
-    plots[2], = ax_regs.plot(S[:, 0], s_reg_func(S[:, 0], sigma, alpha, eta), '--', label='full', color='C2')
-    ax_regs.set_xlim(*s_lim)
+    # plots[2], = ax_regs.plot(S[:, 0], s_reg_func(S[:, 0], sigma, alpha, eta), '--', label='full', color='C2')
+    # ax_regs.set_xlim(*s_lim)
     if legend is None:
         # ax_regs.legend()
         pass
@@ -608,4 +732,15 @@ text_smax.on_submit(on_submit)
 fig.text(0.08, 0.19, 'h limits', fontweight='bold', fontsize=12)
 fig.text(0.08, 0.09, 's limits', fontweight='bold', fontsize=12)
 
-#### ADD parameter table
+#%% FOR COUPLING DELAY SCAN
+
+BASE_DIR = 'DeltaDimer_data/tauc_alpha/coupling_delay/'
+
+scans = contenidos(BASE_DIR)
+ffiles = [contenidos(c, filter_ext='.npy') for c in scans]
+
+runs = [pd.read_csv(os.path.join(d, 'runs.csv'), index_col='name') for d in scans]
+
+parameters = runs.keys()
+parameter_values = {k:sorted(list(set(runs[k]))) for k in parameters}
+

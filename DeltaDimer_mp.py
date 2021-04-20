@@ -121,9 +121,9 @@ def run_one(*parameters):
     parameters = make_parameters(*parameters)
     
     estimated_period = 2 * (tau + 1) # tau is automatically adimentionalized
-    n = 1500
+    n = 1200
     target_n = 150 # approximate ammount of points per estimated period to save
-    K = 60 # ammount of estiamted periods to integrate over
+    K = 10 # ammount of estiamted periods to integrate over
     
     print_asynch(lock, f'Starting {file_name}\n')
     
@@ -214,7 +214,7 @@ def main():
         l = Lock()
         
         #fire off workers
-        with Pool(cpu_count() + 2, initializer=init, initargs=(l,)) as pool:
+        with Pool(cpu_count() - 2, initializer=init, initargs=(l,)) as pool:
         
             jobs = []
             for param_tuple in parameters:
